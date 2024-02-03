@@ -36,16 +36,27 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
+	callbackRouters := []handlers.Handler{
+		habitBot.HandleFSMHabit,
+	}
+
+	messageRouters := []handlers.Handler{
+		habitBot.HandleCommand,
+		habitBot.HandleFSMHabit,
+	}
+
 	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
+		done := false
 
 		log.Info().Msgf("%+v", update)
 
-		done := false
+		if update.CallbackQuery != nil {
+			passHandlers(&update, &done, callbackRouters...)
+		}
 
-		passHandlers(&update, &done, habitBot.HandleCommand, habitBot.HandleFSMHabit)
+		if update.Message != nil {
+			passHandlers(&update, &done, messageRouters...)
+		}
 	}
 }
 

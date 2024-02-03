@@ -8,27 +8,37 @@ import (
 const (
 	startState        = "start"
 	getHabitNameState = "gettingHabitName"
+	getHabitDaysState = "gettingHabitDays"
 )
 
-func (h *HabitBot) FSM(update tgbotapi.Update) *fsm.FSM {
-	userID := update.Message.From.ID
+func (h *HabitBot) FSM(update *tgbotapi.Update) *fsm.FSM {
+	var userID int64
+
+	if update.Message != nil {
+		userID = update.Message.From.ID
+	} else if update.CallbackQuery != nil {
+		userID = update.CallbackQuery.From.ID
+	} else {
+		panic("Невозможно идентифицитировать юзера")
+	}
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if _, ok := h.FSMMap[userID]; !ok {
-		h.FSMMap[userID] = fsm.NewFSM(
-			"start",
-			fsmEvents(),
-			fsm.Callbacks{},
-		)
+	if existingFSM, ok := h.FSMMap[userID]; ok {
+		return existingFSM
 	}
 
-	return h.FSMMap[userID]
+	newFSM := fsm.NewFSM(
+		"initial",
+		fsmEvents(),
+		fsm.Callbacks{},
+	)
+
+	h.FSMMap[userID] = newFSM
+	return newFSM
 }
 
 func fsmEvents() fsm.Events {
-	return fsm.Events{
-		{Name: "start", Src: []string{getHabitNameState}, Dst: startState},
-		{Name: "addNewHabit", Src: []string{startState}, Dst: getHabitNameState},
-	}
+	return []fsm.EventDesc{}
 }

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"HabitsBot/internal/messages"
-	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/rs/zerolog/log"
 )
@@ -27,12 +26,9 @@ func (h *HabitBot) HandleCommand(update *tgbotapi.Update, done *bool) {
 }
 
 func (h *HabitBot) handleStartCommand(update *tgbotapi.Update, done *bool) {
-	err := h.FSM(*update).Event(context.TODO(), "start")
-	if err != nil {
-		log.Error().Msg(err.Error())
-	}
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.MsgStart)
-	_, err = h.Bot.Send(msg)
+	h.FSM(update).SetState(startState)
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.StartMsg)
+	_, err := h.Bot.Send(msg)
 	if err != nil {
 		log.Error().Msg(err.Error())
 	}
@@ -40,14 +36,14 @@ func (h *HabitBot) handleStartCommand(update *tgbotapi.Update, done *bool) {
 }
 
 func (h *HabitBot) handleAddNewHabitCommand(update *tgbotapi.Update, done *bool) {
-	h.FSM(*update).Event(context.TODO(), "addNewHabit")
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите название новой привычки:")
+	h.FSM(update).SetState(getHabitNameState)
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InputHabitNameMsg)
 	h.Bot.Send(msg)
 	*done = true
 }
 
 func (h *HabitBot) handleFSMCheckCommand(update *tgbotapi.Update, done *bool) {
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "вы в состоянии: "+h.FSM(*update).Current())
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "вы в состоянии: "+h.FSM(update).Current())
 	h.Bot.Send(msg)
 	*done = true
 }
