@@ -30,10 +30,13 @@ func DaysPickerKeyboard(days []string) tgbotapi.InlineKeyboardMarkup {
 		}
 	}
 
-	daysOfWeek = append(daysOfWeek, CallBackData{Name: "Продолжить  ⏩", Data: "continue"})
-
 	for _, day := range daysOfWeek {
 		rows = append(rows, createInlineKeyboardRow(day.Name, day.Data))
+	}
+
+	if len(days) > 0 {
+		btn := tgbotapi.NewInlineKeyboardButtonData("Продолжить  ⏩", "continue")
+		rows = append(rows, []tgbotapi.InlineKeyboardButton{btn})
 	}
 
 	return tgbotapi.InlineKeyboardMarkup{

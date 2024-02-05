@@ -2,17 +2,28 @@ package main
 
 import (
 	"HabitsBot/internal/handlers"
+	"HabitsBot/internal/models"
+	"HabitsBot/internal/shedulers"
+	"HabitsBot/internal/storages/postgres"
 	"HabitsBot/pkg/systems"
+	"context"
 	"github.com/looplab/fsm"
 	"github.com/rs/zerolog/log"
 	"os"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 func main() {
 	systems.SetupLogger()
 	systems.MustLoadEnv()
+
+	db, err := pgx.Connect(context.Background(), os.Getenv("DB_URL"))
+
+	if err != nil {
+		log.Fatal().Err(err).Msg("Не удалось подключиться к базе данных")
+	}
 
 	token := os.Getenv("BOT_TOKEN")
 
@@ -24,9 +35,10 @@ func main() {
 	handlers.MustCommands(bot)
 
 	habitBot := &handlers.HabitBot{
-		Bot:          bot,
-		FSMMap:       make(map[int64]*fsm.FSM),
-		HabitStorage: make(map[int64]string),
+		Bot:              bot,
+		FSMMap:           make(map[int64]*fsm.FSM),
+		HabitStorage:     postgres.New(db),
+		TimeShedulerChan: make(chan models.Habit),
 	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
@@ -44,6 +56,12 @@ func main() {
 		habitBot.HandleCommand,
 		habitBot.HandleFSMHabit,
 	}
+
+	go func() {
+		for habit := range habitBot.TimeShedulerChan {
+			go shedulers.AddHabitToTiming(habit, habitBot)
+		}
+	}()
 
 	for update := range updates {
 		done := false

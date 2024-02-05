@@ -35,7 +35,7 @@ func TimePickerKeyboard(times []string) tgbotapi.InlineKeyboardMarkup {
 	}
 
 	if len(times) > 0 {
-		btn := tgbotapi.NewInlineKeyboardButtonData("Продолжить  ⏩", "time__continue")
+		btn := tgbotapi.NewInlineKeyboardButtonData("Создать привычку  ✨", "time__continue")
 		rows = append(rows, []tgbotapi.InlineKeyboardButton{btn})
 	}
 

@@ -11,6 +11,12 @@ const (
 	getHabitDaysState = "gettingHabitDays"
 )
 
+func (h *HabitBot) Clear(update *tgbotapi.Update, keys ...string) {
+	for _, key := range keys {
+		h.FSM(update).DeleteMetadata(key)
+	}
+}
+
 func (h *HabitBot) FSM(update *tgbotapi.Update) *fsm.FSM {
 	var userID int64
 
