@@ -13,7 +13,9 @@ type HabitBot struct {
 	FSMMap           map[int64]*fsm.FSM
 	mu               sync.Mutex
 	HabitStorage     storages.HabitStorage
+	RejectionStorage storages.RejectionStorage
 	TimeShedulerChan chan models.Habit
+	ControlChanMap   map[int]*chan string
 }
 
 type Handler func(update *tgbotapi.Update, done *bool)

@@ -38,7 +38,9 @@ func main() {
 		Bot:              bot,
 		FSMMap:           make(map[int64]*fsm.FSM),
 		HabitStorage:     postgres.New(db),
+		RejectionStorage: postgres.NewRejection(db),
 		TimeShedulerChan: make(chan models.Habit),
+		ControlChanMap:   make(map[int]*chan string),
 	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)

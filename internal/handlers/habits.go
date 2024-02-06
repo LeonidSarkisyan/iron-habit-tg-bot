@@ -21,6 +21,8 @@ func (h *HabitBot) HandleFSMHabit(update *tgbotapi.Update, done *bool) {
 			h.getHabitWarningTime(update, done)
 		case getCompletedTimeState:
 			h.getHabitCompletedTime(update, done)
+		case getTextRejectionState:
+			h.getTextRejection(update, done)
 		}
 	} else {
 		callBackData := update.CallbackQuery.Data
@@ -32,6 +34,8 @@ func (h *HabitBot) HandleFSMHabit(update *tgbotapi.Update, done *bool) {
 			h.handleSaveHabit(update, done)
 		case strings.HasPrefix(callBackData, "time__"):
 			h.getHabitTime(update, done)
+		case strings.HasPrefix(callBackData, "cancel_habit__"):
+			h.cancelHabit(update, done)
 		default:
 			h.getHabitDay(update, done)
 		}
@@ -261,7 +265,7 @@ func (h *HabitBot) getHabitCompletedTime(update *tgbotapi.Update, done *bool) {
 
 		h.Clear(update, "habit_name", "days", "times")
 
-		err := h.HabitStorage.Create(habit)
+		id, err := h.HabitStorage.Create(habit)
 
 		if err != nil {
 			log.Error().Err(err).Msg(err.Error())
@@ -274,9 +278,84 @@ func (h *HabitBot) getHabitCompletedTime(update *tgbotapi.Update, done *bool) {
 			msg.ParseMode = tgbotapi.ModeHTML
 			h.Bot.Send(msg)
 
+			habit.ID = id
+
 			h.TimeShedulerChan <- habit
 		}
 
 		log.Info().Any("habit", habit).Msg("Сохраняем")
 	}
+}
+
+// CALL_BACK_DATA = cancel_habit__{habit_id}
+func (h *HabitBot) cancelHabit(update *tgbotapi.Update, done *bool) {
+	defer func() { *done = true }()
+
+	habitID := strings.Replace(update.CallbackQuery.Data, "cancel_habit__", "", 1)
+
+	h.createOrUpdateSliceMetadata(update, "messages_ids", update.CallbackQuery.Message.MessageID)
+
+	msgAsk := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, messages.GetTextRejectionMsg)
+	h.Bot.Send(msgAsk)
+
+	h.FSM(update).SetMetadata("habit_id", habitID)
+	h.FSM(update).SetState(getTextRejectionState)
+	h.AnswerCallbackQuery(update)
+}
+
+// FSM STATE = getTextRejectionState
+func (h *HabitBot) getTextRejection(update *tgbotapi.Update, done *bool) {
+	defer func() { *done = true }()
+
+	if update.Message.Text == "" {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidRejectionMsg)
+		h.Bot.Send(msg)
+		return
+	}
+
+	habitID, exists := h.FSM(update).Metadata("habit_id")
+
+	if !exists {
+		log.Error().Msg("почему-то habit_id не существует")
+		return
+	}
+
+	text := update.Message.Text
+
+	habitIDInt, err := strconv.Atoi(habitID.(string))
+
+	if err != nil {
+		log.Error().Err(err).Msg("не удалось преобразовать habit_id в int")
+		return
+	}
+
+	rejection := models.Rejection{
+		Text:    text,
+		HabitID: habitIDInt,
+	}
+
+	err = h.RejectionStorage.Create(rejection)
+
+	if err != nil {
+		msgText := tgbotapi.NewMessage(update.Message.Chat.ID, messages.RejectionCreateErrorMsg)
+		h.Bot.Send(msgText)
+		return
+	}
+
+	*h.ControlChanMap[habitIDInt] <- "cancel"
+
+	habitName, err := h.HabitStorage.Name(habitIDInt, update.Message.From.ID)
+
+	if err != nil {
+		msg := tgbotapi.NewMessage(update.Message.From.ID, messages.CancelHabitErrorMsg)
+		h.Bot.Send(msg)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(update.Message.From.ID, messages.CancelHabitMsg(habitName, text))
+	h.Bot.Send(msg)
+
+	h.deleteMessage(update)
+	h.FSM(update).DeleteMetadata("habit_id")
+	h.FSM(update).SetState(startState)
 }

@@ -11,6 +11,8 @@ const (
 	getHabitDaysState     = "gettingHabitDays"
 	getWarningTimeState   = "gettingWarningTime"
 	getCompletedTimeState = "gettingCompletedTime"
+
+	getTextRejectionState = "getTextRejection"
 )
 
 func (h *HabitBot) Clear(update *tgbotapi.Update, keys ...string) {

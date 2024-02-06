@@ -14,12 +14,12 @@ func New(conn *pgx.Conn) *HabitStorage {
 	return &HabitStorage{conn}
 }
 
-func (h *HabitStorage) Create(habit models.Habit) error {
+func (h *HabitStorage) Create(habit models.Habit) (int, error) {
 
 	tx, err := h.db.Begin(context.Background())
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer tx.Rollback(context.Background())
@@ -33,7 +33,7 @@ func (h *HabitStorage) Create(habit models.Habit) error {
 	).Scan(&habitID)
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	var rows [][]any
@@ -49,15 +49,25 @@ func (h *HabitStorage) Create(habit models.Habit) error {
 	)
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	err = tx.Commit(context.Background())
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return habitID, nil
+}
+
+func (h *HabitStorage) Name(habitID int, userID int64) (string, error) {
+	query := `SELECT h.title FROM habits h WHERE h.id = $1 AND h.user_id = $2`
+
+	var name string
+
+	err := h.db.QueryRow(context.Background(), query, habitID, userID).Scan(&name)
+
+	return name, err
 }
 
 func (h *HabitStorage) Get(userID int64) (models.Habit, error) {
