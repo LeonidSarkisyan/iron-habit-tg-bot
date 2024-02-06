@@ -1,11 +1,12 @@
 package shedulers
 
 import (
+	"fmt"
 	"github.com/rs/zerolog/log"
 	"time"
 )
 
-func ScheduleTask(weekday time.Weekday, hour, minute int, task func()) {
+func ScheduleTaskAWeek(weekday time.Weekday, hour, minute int, task func()) {
 	go func() {
 		now := time.Now()
 		currentWeekday := now.Weekday()
@@ -15,6 +16,13 @@ func ScheduleTask(weekday time.Weekday, hour, minute int, task func()) {
 		nextTime := time.Date(nextWeekday.Year(), nextWeekday.Month(), nextWeekday.Day(), hour, minute, 0, 0, nextWeekday.Location())
 
 		timeUntilFirstExecution := nextTime.Sub(now)
+
+		if timeUntilFirstExecution < 0 {
+			timeUntilFirstExecution += 7 * 24 * time.Hour
+		}
+
+		fmt.Println(timeUntilFirstExecution)
+
 		timer := time.NewTimer(timeUntilFirstExecution)
 
 		taskFunctionWrapper := func() {

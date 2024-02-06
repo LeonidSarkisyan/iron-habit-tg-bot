@@ -24,11 +24,13 @@ func (h *HabitStorage) Create(habit models.Habit) error {
 
 	defer tx.Rollback(context.Background())
 
-	stmt := `INSERT INTO habits (title, user_id) VALUES ($1, $2) RETURNING id;`
+	stmt := `INSERT INTO habits (title, time_warning, time_completed, user_id) VALUES ($1, $2, $3, $4) RETURNING id;`
 
 	var habitID int
 
-	err = h.db.QueryRow(context.Background(), stmt, habit.Title, habit.UserID).Scan(&habitID)
+	err = h.db.QueryRow(
+		context.Background(), stmt, habit.Title, habit.WarningTime, habit.CompletedTime, habit.UserID,
+	).Scan(&habitID)
 
 	if err != nil {
 		return err
@@ -60,7 +62,7 @@ func (h *HabitStorage) Create(habit models.Habit) error {
 
 func (h *HabitStorage) Get(userID int64) (models.Habit, error) {
 	query := `
-	SELECT h.title, t.day, t.time FROM habits h 
+	SELECT h.id, h.title, h.time_warning, h.time_completed, t.day, t.time FROM habits h 
 	JOIN timestamps t ON t.habit_id = h.id
 	WHERE h.user_id = $1
 	`
@@ -77,7 +79,7 @@ func (h *HabitStorage) Get(userID int64) (models.Habit, error) {
 
 	for rows.Next() {
 		var ts models.Timestamp
-		err = rows.Scan(&habit.Title, &ts.Day, &ts.Time)
+		err = rows.Scan(&habit.ID, &habit.Title, &habit.WarningTime, &habit.CompletedTime, &ts.Day, &ts.Time)
 		if err != nil {
 			return habit, err
 		}

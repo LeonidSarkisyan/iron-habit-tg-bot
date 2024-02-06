@@ -1,9 +1,12 @@
 package models
 
 type Habit struct {
-	Title      string
-	UserID     int64
-	Timestamps []Timestamp
+	ID            int
+	Title         string
+	UserID        int64
+	WarningTime   int
+	CompletedTime int
+	Timestamps    []Timestamp
 }
 
 type Timestamp struct {

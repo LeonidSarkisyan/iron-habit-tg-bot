@@ -36,20 +36,14 @@ func AddHabitToTiming(habit models.Habit, habitBot *handlers.HabitBot) {
 			log.Error().Err(err).Msg("Не удалось распарсить время в модели Habit")
 		}
 
-		warningTime := 15
-
-		if minute-warningTime < 0 {
-			hour -= 1
-			minute = minute - warningTime + 60
-		}
-
-		ScheduleTask(day, hour, 42-warningTime, func() {
-			habitBot.SendWarningBeforeNotification(habit)
-		})
-
-		ScheduleTask(day, hour, 32, func() {
+		ScheduleTaskAWeek(day, hour, minute, func() {
 			habitBot.SendNotification(habit)
 		})
-	}
 
+		dayWarning, hourWarning, minuteWarning := utils.GetWarningHoursAndMinutes(day, hour, minute, habit.WarningTime)
+
+		ScheduleTaskAWeek(dayWarning, hourWarning, minuteWarning, func() {
+			habitBot.SendWarningBeforeNotification(habit)
+		})
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/rs/zerolog/log"
+	"strconv"
 	"strings"
 )
 
@@ -16,6 +17,10 @@ func (h *HabitBot) HandleFSMHabit(update *tgbotapi.Update, done *bool) {
 		switch state {
 		case getHabitNameState:
 			h.showGettingHabitName(update, done)
+		case getWarningTimeState:
+			h.getHabitWarningTime(update, done)
+		case getCompletedTimeState:
+			h.getHabitCompletedTime(update, done)
 		}
 	} else {
 		callBackData := update.CallbackQuery.Data
@@ -169,11 +174,76 @@ func (h *HabitBot) getHabitTime(update *tgbotapi.Update, done *bool) {
 }
 
 func (h *HabitBot) handleSaveHabit(update *tgbotapi.Update, done *bool) {
+
+	msgText := messages.InputWarningTimeMsg
+	msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, msgText)
+	h.Bot.Send(msg)
+	h.FSM(update).SetState(getWarningTimeState)
+
+	h.AnswerCallbackQuery(update)
+
+	*done = true
+}
+
+func (h *HabitBot) getHabitWarningTime(update *tgbotapi.Update, done *bool) {
+	defer func() {
+		*done = true
+	}()
+
+	warningTimeStr := update.Message.Text
+
+	warningTime, err := strconv.Atoi(warningTimeStr)
+
+	if err != nil {
+		log.Error().Err(err).Msg(err.Error())
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidInputMsg)
+		h.Bot.Send(msg)
+		return
+	}
+
+	if warningTime < 0 || warningTime > 60 {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidRangeInputWarningTimeMsg)
+		h.Bot.Send(msg)
+		return
+	}
+
+	h.FSM(update).SetMetadata("warning_time", warningTime)
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.GetWarningTimeMsg)
+	h.Bot.Send(msg)
+
+	h.FSM(update).SetState(getCompletedTimeState)
+}
+
+// FSM STATE = getCompletedTimeState
+func (h *HabitBot) getHabitCompletedTime(update *tgbotapi.Update, done *bool) {
+	defer func() {
+		*done = true
+	}()
+
+	completedTimeStr := update.Message.Text
+
+	completedTime, err := strconv.Atoi(completedTimeStr)
+
+	if err != nil {
+		log.Error().Err(err).Msg(err.Error())
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidInputMsg)
+		h.Bot.Send(msg)
+		return
+	}
+
+	if completedTime < 0 || completedTime > 60 {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidRangeInputWarningTimeMsg)
+		h.Bot.Send(msg)
+		return
+	}
+
 	habitName, nameExists := h.FSM(update).Metadata("habit_name")
 	days, dayExists := h.FSM(update).Metadata("days")
 	times, timeExists := h.FSM(update).Metadata("times")
+	warningTime, warningTimeExists := h.FSM(update).Metadata("warning_time")
 
-	if nameExists && dayExists && timeExists {
+	if nameExists && dayExists && timeExists && warningTimeExists {
 		for i, time := range times.([]string) {
 			(times.([]string))[i] = strings.Replace(time, "time__", "", 1)
 		}
@@ -181,8 +251,10 @@ func (h *HabitBot) handleSaveHabit(update *tgbotapi.Update, done *bool) {
 		h.deleteMessage(update)
 
 		habit := models.Habit{
-			Title:  habitName.(string),
-			UserID: update.CallbackQuery.From.ID,
+			Title:         habitName.(string),
+			UserID:        update.Message.From.ID,
+			WarningTime:   warningTime.(int),
+			CompletedTime: completedTime,
 		}
 
 		habit.Timestamps = models.NewTimestamps(days.([]string), times.([]string))
@@ -194,11 +266,11 @@ func (h *HabitBot) handleSaveHabit(update *tgbotapi.Update, done *bool) {
 		if err != nil {
 			log.Error().Err(err).Msg(err.Error())
 
-			msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, messages.HabitCreateErrorMsg)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.HabitCreateErrorMsg)
 			h.Bot.Send(msg)
 		} else {
 			msgText := messages.ShowSaveHabitMsg(habitName.(string), days.([]string), times.([]string))
-			msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, msgText)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgText)
 			msg.ParseMode = tgbotapi.ModeHTML
 			h.Bot.Send(msg)
 
@@ -206,10 +278,5 @@ func (h *HabitBot) handleSaveHabit(update *tgbotapi.Update, done *bool) {
 		}
 
 		log.Info().Any("habit", habit).Msg("Сохраняем")
-		// TODO: implement saving habit to DB
 	}
-
-	h.AnswerCallbackQuery(update)
-
-	*done = true
 }

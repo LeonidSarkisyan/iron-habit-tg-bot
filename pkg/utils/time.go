@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 func ExtractHoursAndMinutes(input string) (int, int, error) {
@@ -25,4 +26,25 @@ func ExtractHoursAndMinutes(input string) (int, int, error) {
 	}
 
 	return hours, minutes, nil
+}
+
+func GetWarningHoursAndMinutes(day time.Weekday, hour, minute, warningTime int) (time.Weekday, int, int) {
+
+	if minute-warningTime < 0 {
+		minute = minute - warningTime + 60
+		if hour == 0 {
+			hour = 23
+			if day == 0 {
+				day = 6
+			} else {
+				day -= 1
+			}
+		} else {
+			hour -= 1
+		}
+	} else {
+		minute -= warningTime
+	}
+
+	return day, hour, minute
 }

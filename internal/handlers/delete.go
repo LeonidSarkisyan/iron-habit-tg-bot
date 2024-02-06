@@ -30,11 +30,7 @@ func (h *HabitBot) deleteMessage(update *tgbotapi.Update) {
 				MessageID: messageID,
 			}
 
-			_, err := h.Bot.Request(msgToDelete)
-
-			if err != nil {
-				log.Error().Err(err).Msg(err.Error())
-			}
+			_, _ = h.Bot.Request(msgToDelete)
 		}
 	}
 }
