@@ -4,6 +4,7 @@ import (
 	"HabitsBot/internal/models"
 	"context"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 )
 
 type HabitStorage struct {
@@ -97,4 +98,110 @@ func (h *HabitStorage) Get(userID int64) (models.Habit, error) {
 	}
 
 	return habit, nil
+}
+
+func (h *HabitStorage) GetAll(userID int64, offset int) ([]models.Habit, error) {
+	var habits []models.Habit
+
+	query := `
+	SELECT h.id, h.title, ts.day, ts.time
+	FROM habits h 
+	LEFT JOIN timestamps ts ON ts.habit_id = h.id
+	WHERE h.user_id = $1
+	AND h.id IN (
+		SELECT id
+		FROM habits
+		WHERE user_id = $1
+		ORDER BY id ASC
+		LIMIT 5 OFFSET $2
+	)
+	ORDER BY h.id ASC;
+    `
+
+	habitsMap := make(map[int]*models.Habit)
+
+	rows, err := h.db.Query(context.Background(), query, userID, offset)
+	if err != nil {
+		log.Error().Err(err).Msg("Error executing query")
+		return habits, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var h models.Habit
+		var ts models.Timestamp
+		if err := rows.Scan(&h.ID, &h.Title, &ts.Day, &ts.Time); err != nil {
+			log.Error().Err(err).Msg("Error scanning row")
+			continue
+		}
+
+		if _, ok := habitsMap[h.ID]; !ok {
+			habitsMap[h.ID] = &models.Habit{
+				ID:         h.ID,
+				Title:      h.Title,
+				Timestamps: make([]models.Timestamp, 0),
+			}
+		}
+
+		habitsMap[h.ID].Timestamps = append(habitsMap[h.ID].Timestamps, ts)
+	}
+
+	for _, habit := range habitsMap {
+		habits = append(habits, *habit)
+	}
+
+	return habits, nil
+}
+
+func (h *HabitStorage) Habits() ([]models.Habit, error) {
+	var habits []models.Habit
+
+	query := `
+	SELECT h.id, h.title, h.time_warning, h.time_completed, h.user_id, ts.day, ts.time
+	FROM habits h 
+	LEFT JOIN timestamps ts ON ts.habit_id = h.id
+	AND h.id IN (
+		SELECT id
+		FROM habits
+		ORDER BY id ASC
+	)
+	ORDER BY h.id ASC;
+    `
+
+	habitsMap := make(map[int]*models.Habit)
+
+	rows, err := h.db.Query(context.Background(), query)
+	if err != nil {
+		log.Error().Err(err).Msg("Error executing query")
+		return habits, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var h models.Habit
+		var ts models.Timestamp
+		if err := rows.Scan(&h.ID, &h.Title, &h.WarningTime, &h.CompletedTime, &h.UserID, &ts.Day, &ts.Time); err != nil {
+			log.Error().Err(err).Msg("Error scanning row")
+			continue
+		}
+
+		if _, ok := habitsMap[h.ID]; !ok {
+			habitsMap[h.ID] = &models.Habit{
+				ID:            h.ID,
+				Title:         h.Title,
+				WarningTime:   h.WarningTime,
+				CompletedTime: h.CompletedTime,
+				UserID:        h.UserID,
+				Timestamps:    make([]models.Timestamp, 0),
+			}
+		}
+
+		habitsMap[h.ID].Timestamps = append(habitsMap[h.ID].Timestamps, ts)
+	}
+
+	for _, habit := range habitsMap {
+		habits = append(habits, *habit)
+	}
+
+	return habits, nil
 }

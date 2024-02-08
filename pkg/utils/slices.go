@@ -23,3 +23,20 @@ func ConvertToIntSlice(slice []interface{}) []int {
 
 	return result
 }
+
+func AddUniqueValueToSlice[T string | int](value T, slice []T) []T {
+	exists := false
+
+	for _, v := range slice {
+		if v == value {
+			exists = true
+			return slice
+		}
+	}
+
+	if !exists {
+		slice = append(slice, value)
+	}
+
+	return slice
+}

@@ -13,6 +13,8 @@ const (
 	InvalidRejectionMsg = "Введено некорректное значение. Попробуйте ещё раз"
 
 	RejectionCreateErrorMsg = "Ошибка при создании отмены привычки. Попробуйте ещё раз"
+
+	ErrorGetHabits = "Произошла ошибка при загрузке привычек. Попробуйте позже."
 )
 
 func CancelHabitMsg(habitName, rejectionText string) string {

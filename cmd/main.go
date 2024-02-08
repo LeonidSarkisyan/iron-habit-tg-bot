@@ -2,12 +2,9 @@ package main
 
 import (
 	"HabitsBot/internal/handlers"
-	"HabitsBot/internal/models"
 	"HabitsBot/internal/shedulers"
-	"HabitsBot/internal/storages/postgres"
 	"HabitsBot/pkg/systems"
 	"context"
-	"github.com/looplab/fsm"
 	"github.com/rs/zerolog/log"
 	"os"
 
@@ -28,63 +25,47 @@ func main() {
 	token := os.Getenv("BOT_TOKEN")
 
 	bot, err := tgbotapi.NewBotAPI(token)
+
 	if err != nil {
 		log.Fatal().Err(err).Msg("Не удалось создать бота")
 	}
 
 	handlers.MustCommands(bot)
 
-	habitBot := &handlers.HabitBot{
-		Bot:              bot,
-		FSMMap:           make(map[int64]*fsm.FSM),
-		HabitStorage:     postgres.New(db),
-		RejectionStorage: postgres.NewRejection(db),
-		TimeShedulerChan: make(chan models.Habit),
-		ControlChanMap:   make(map[int]*chan string),
+	habitBot := handlers.New(bot, db)
+
+	habits, err := habitBot.HabitStorage.Habits()
+
+	if err != nil {
+		log.Fatal().Err(err).Msg("невозможно запустить таймеры привычек")
 	}
 
+	go shedulers.AddManyHabitsToTiming(habits, habitBot)
+
+	go shedulers.HabitListener(habitBot)
+
+	log.Info().Msg("Таймеры привычек были запущены")
+
 	log.Printf("Authorized on account %s", bot.Self.UserName)
+
+	d := handlers.NewDispatcher(habitBot)
+
+	commandRouter := handlers.NewCommandRouter(habitBot)
+	habitsFSMRouter := handlers.NewHabitsFSMRouter(habitBot)
+	habitsCallBackRouter := handlers.NewHabitsCallBackRouter(habitBot)
+
+	d.IncludeRouter(commandRouter)
+	d.IncludeRouter(habitsFSMRouter)
+	d.IncludeRouter(habitsCallBackRouter)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
 	updates := bot.GetUpdatesChan(u)
 
-	callbackRouters := []handlers.Handler{
-		habitBot.HandleFSMHabit,
-	}
-
-	messageRouters := []handlers.Handler{
-		habitBot.HandleCommand,
-		habitBot.HandleFSMHabit,
-	}
-
-	go func() {
-		for habit := range habitBot.TimeShedulerChan {
-			go shedulers.AddHabitToTiming(habit, habitBot)
-		}
-	}()
-
 	for update := range updates {
-		done := false
-
 		log.Info().Msgf("%+v", update)
 
-		if update.CallbackQuery != nil {
-			passHandlers(&update, &done, callbackRouters...)
-		}
-
-		if update.Message != nil {
-			passHandlers(&update, &done, messageRouters...)
-		}
-	}
-}
-
-func passHandlers(update *tgbotapi.Update, done *bool, handlers ...handlers.Handler) {
-	for _, handler := range handlers {
-		handler(update, done)
-		if *done {
-			break
-		}
+		d.PassHandlers(&update)
 	}
 }

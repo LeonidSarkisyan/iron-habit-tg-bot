@@ -6,13 +6,13 @@ import (
 )
 
 const (
-	startState            = "start"
-	getHabitNameState     = "gettingHabitName"
-	getHabitDaysState     = "gettingHabitDays"
-	getWarningTimeState   = "gettingWarningTime"
-	getCompletedTimeState = "gettingCompletedTime"
+	StartState            = "start"
+	GetHabitNameState     = "gettingHabitName"
+	GetHabitDaysState     = "gettingHabitDays"
+	GetWarningTimeState   = "gettingWarningTime"
+	GetCompletedTimeState = "gettingCompletedTime"
 
-	getTextRejectionState = "getTextRejection"
+	GetTextRejectionState = "GetTextRejection"
 )
 
 func (h *HabitBot) Clear(update *tgbotapi.Update, keys ...string) {

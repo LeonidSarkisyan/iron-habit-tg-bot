@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"HabitsBot/internal/filters"
 	"HabitsBot/internal/keyboards"
 	"HabitsBot/internal/messages"
 	"HabitsBot/internal/models"
@@ -11,38 +12,30 @@ import (
 	"strings"
 )
 
-func (h *HabitBot) HandleFSMHabit(update *tgbotapi.Update, done *bool) {
-	if update.CallbackQuery == nil {
-		state := h.FSM(update).Current()
-		switch state {
-		case getHabitNameState:
-			h.showGettingHabitName(update, done)
-		case getWarningTimeState:
-			h.getHabitWarningTime(update, done)
-		case getCompletedTimeState:
-			h.getHabitCompletedTime(update, done)
-		case getTextRejectionState:
-			h.getTextRejection(update, done)
-		}
-	} else {
-		callBackData := update.CallbackQuery.Data
+func NewHabitsFSMRouter(habitBot *HabitBot) *Router {
+	r := NewRouter(habitBot)
 
-		switch {
-		case callBackData == "continue":
-			h.showHabitNameAndDaysAndAskTime(update, done)
-		case callBackData == "time__continue":
-			h.handleSaveHabit(update, done)
-		case strings.HasPrefix(callBackData, "time__"):
-			h.getHabitTime(update, done)
-		case strings.HasPrefix(callBackData, "cancel_habit__"):
-			h.cancelHabit(update, done)
-		default:
-			h.getHabitDay(update, done)
-		}
-	}
+	r.FSMState(GetHabitNameState, filters.F(filters.IsCallbackQueryEmpty), habitBot.ShowGettingHabitName)
+	r.FSMState(GetWarningTimeState, filters.F(filters.IsCallbackQueryEmpty), habitBot.GetHabitWarningTime)
+	r.FSMState(GetCompletedTimeState, filters.F(filters.IsCallbackQueryEmpty), habitBot.GetHabitCompletedTime)
+	r.FSMState(GetTextRejectionState, filters.F(filters.IsCallbackQueryEmpty), habitBot.GetTextRejection)
+
+	return r
 }
 
-func (h *HabitBot) showGettingHabitName(update *tgbotapi.Update, done *bool) {
+func NewHabitsCallBackRouter(habitBot *HabitBot) *Router {
+	r := NewRouter(habitBot)
+
+	r.CallBackQuery(filters.F(filters.IsCallBackDataContinue), habitBot.ShowHabitNameAndDaysAndAskTime)
+	r.CallBackQuery(filters.F(filters.IsCallBackDataTimeContinue), habitBot.HandleSaveHabit)
+	r.CallBackQuery(filters.F(filters.IsCallBackDataStartWithTime), habitBot.GetHabitTime)
+	r.CallBackQuery(filters.F(filters.IsCallBackDataCancelHabit), habitBot.CancelHabit)
+	r.CallBackQuery(filters.F(filters.IsCallbackQuery), habitBot.GetHabitDay)
+
+	return r
+}
+
+func (h *HabitBot) ShowGettingHabitName(update *tgbotapi.Update) {
 	habitName := update.Message.Text
 	msgText := fmt.Sprintf("Ваша привычка: %s", habitName)
 	h.FSM(update).SetMetadata("habit_name", habitName)
@@ -51,7 +44,7 @@ func (h *HabitBot) showGettingHabitName(update *tgbotapi.Update, done *bool) {
 
 	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
 
-	h.FSM(update).SetState(getHabitDaysState)
+	h.FSM(update).SetState(GetHabitDaysState)
 
 	inlineKeyboard := keyboards.DaysPickerKeyboard([]string{})
 
@@ -66,11 +59,9 @@ func (h *HabitBot) showGettingHabitName(update *tgbotapi.Update, done *bool) {
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())
 	}
-
-	*done = true
 }
 
-func (h *HabitBot) getHabitDay(update *tgbotapi.Update, done *bool) {
+func (h *HabitBot) GetHabitDay(update *tgbotapi.Update) {
 	callbackData := update.CallbackQuery.Data
 
 	days, existsDays := h.FSM(update).Metadata("days")
@@ -110,11 +101,10 @@ func (h *HabitBot) getHabitDay(update *tgbotapi.Update, done *bool) {
 	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
 
 	h.AnswerCallbackQuery(update)
-	*done = true
 }
 
-// callBackData: "continue"
-func (h *HabitBot) showHabitNameAndDaysAndAskTime(update *tgbotapi.Update, done *bool) {
+// ShowHabitNameAndDaysAndAskTime callBackData: "continue"
+func (h *HabitBot) ShowHabitNameAndDaysAndAskTime(update *tgbotapi.Update) {
 	habitName, nameExists := h.FSM(update).Metadata("habit_name")
 	days, dayExists := h.FSM(update).Metadata("days")
 
@@ -136,10 +126,9 @@ func (h *HabitBot) showHabitNameAndDaysAndAskTime(update *tgbotapi.Update, done 
 	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
 
 	h.AnswerCallbackQuery(update)
-	*done = true
 }
 
-func (h *HabitBot) getHabitTime(update *tgbotapi.Update, done *bool) {
+func (h *HabitBot) GetHabitTime(update *tgbotapi.Update) {
 	callBackData := update.CallbackQuery.Data
 
 	times, exists := h.FSM(update).Metadata("times")
@@ -173,27 +162,19 @@ func (h *HabitBot) getHabitTime(update *tgbotapi.Update, done *bool) {
 	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
 
 	h.AnswerCallbackQuery(update)
-
-	*done = true
 }
 
-func (h *HabitBot) handleSaveHabit(update *tgbotapi.Update, done *bool) {
+func (h *HabitBot) HandleSaveHabit(update *tgbotapi.Update) {
 
 	msgText := messages.InputWarningTimeMsg
 	msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, msgText)
 	h.Bot.Send(msg)
-	h.FSM(update).SetState(getWarningTimeState)
+	h.FSM(update).SetState(GetWarningTimeState)
 
 	h.AnswerCallbackQuery(update)
-
-	*done = true
 }
 
-func (h *HabitBot) getHabitWarningTime(update *tgbotapi.Update, done *bool) {
-	defer func() {
-		*done = true
-	}()
-
+func (h *HabitBot) GetHabitWarningTime(update *tgbotapi.Update) {
 	warningTimeStr := update.Message.Text
 
 	warningTime, err := strconv.Atoi(warningTimeStr)
@@ -205,7 +186,7 @@ func (h *HabitBot) getHabitWarningTime(update *tgbotapi.Update, done *bool) {
 		return
 	}
 
-	if warningTime < 0 || warningTime > 60 {
+	if warningTime < 5 || warningTime > 60 {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidRangeInputWarningTimeMsg)
 		h.Bot.Send(msg)
 		return
@@ -216,15 +197,14 @@ func (h *HabitBot) getHabitWarningTime(update *tgbotapi.Update, done *bool) {
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.GetWarningTimeMsg)
 	h.Bot.Send(msg)
 
-	h.FSM(update).SetState(getCompletedTimeState)
+	msg = tgbotapi.NewMessage(update.Message.Chat.ID, messages.InputCompleteTimeMsg)
+	h.Bot.Send(msg)
+
+	h.FSM(update).SetState(GetCompletedTimeState)
 }
 
-// FSM STATE = getCompletedTimeState
-func (h *HabitBot) getHabitCompletedTime(update *tgbotapi.Update, done *bool) {
-	defer func() {
-		*done = true
-	}()
-
+// GetHabitCompletedTime FSM STATE = GetCompletedTimeState
+func (h *HabitBot) GetHabitCompletedTime(update *tgbotapi.Update) {
 	completedTimeStr := update.Message.Text
 
 	completedTime, err := strconv.Atoi(completedTimeStr)
@@ -236,7 +216,7 @@ func (h *HabitBot) getHabitCompletedTime(update *tgbotapi.Update, done *bool) {
 		return
 	}
 
-	if completedTime < 0 || completedTime > 60 {
+	if completedTime < 15 || completedTime > 300 {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidRangeInputWarningTimeMsg)
 		h.Bot.Send(msg)
 		return
@@ -284,13 +264,13 @@ func (h *HabitBot) getHabitCompletedTime(update *tgbotapi.Update, done *bool) {
 		}
 
 		log.Info().Any("habit", habit).Msg("Сохраняем")
+
+		h.FSM(update).SetState(StartState)
 	}
 }
 
-// CALL_BACK_DATA = cancel_habit__{habit_id}
-func (h *HabitBot) cancelHabit(update *tgbotapi.Update, done *bool) {
-	defer func() { *done = true }()
-
+// CancelHabit CALL_BACK_DATA = cancel_habit__{habit_id}
+func (h *HabitBot) CancelHabit(update *tgbotapi.Update) {
 	habitID := strings.Replace(update.CallbackQuery.Data, "cancel_habit__", "", 1)
 
 	h.createOrUpdateSliceMetadata(update, "messages_ids", update.CallbackQuery.Message.MessageID)
@@ -299,14 +279,12 @@ func (h *HabitBot) cancelHabit(update *tgbotapi.Update, done *bool) {
 	h.Bot.Send(msgAsk)
 
 	h.FSM(update).SetMetadata("habit_id", habitID)
-	h.FSM(update).SetState(getTextRejectionState)
+	h.FSM(update).SetState(GetTextRejectionState)
 	h.AnswerCallbackQuery(update)
 }
 
-// FSM STATE = getTextRejectionState
-func (h *HabitBot) getTextRejection(update *tgbotapi.Update, done *bool) {
-	defer func() { *done = true }()
-
+// FSM STATE = GetTextRejectionState
+func (h *HabitBot) GetTextRejection(update *tgbotapi.Update) {
 	if update.Message.Text == "" {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidRejectionMsg)
 		h.Bot.Send(msg)
@@ -357,5 +335,5 @@ func (h *HabitBot) getTextRejection(update *tgbotapi.Update, done *bool) {
 
 	h.deleteMessage(update)
 	h.FSM(update).DeleteMetadata("habit_id")
-	h.FSM(update).SetState(startState)
+	h.FSM(update).SetState(StartState)
 }
