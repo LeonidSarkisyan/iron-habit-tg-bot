@@ -2,13 +2,14 @@ package filters
 
 import (
 	"HabitsBot/internal/commands"
+	"HabitsBot/pkg/utils"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/rs/zerolog/log"
 )
 
 type Filter func(update *tgbotapi.Update) bool
 
-func F(filter Filter) func(update *tgbotapi.Update) bool {
+func F(filters ...Filter) func(update *tgbotapi.Update) bool {
 	return func(update *tgbotapi.Update) bool {
 		defer func() {
 			if r := recover(); r != nil {
@@ -16,7 +17,13 @@ func F(filter Filter) func(update *tgbotapi.Update) bool {
 			}
 		}()
 
-		return filter(update)
+		var bools []bool
+
+		for _, filter := range filters {
+			bools = append(bools, filter(update))
+		}
+
+		return utils.All(bools)
 	}
 }
 

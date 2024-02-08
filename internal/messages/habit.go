@@ -7,6 +7,19 @@ import (
 	"sort"
 )
 
+var (
+	CancelCreateHabitMsg = "Вы отменили создание привычки."
+	ErrorCreateHabitMsg  = "Произошла ошибка при создании привычки. Попробуйте ещё раз."
+)
+
+func BeforeCreateHabitMsg(name string) string {
+	return fmt.Sprintf("Название вашей привычки: <b>%s</b>. Создаём?", name)
+}
+
+func HabitCreatedMsg(name string) string {
+	return "<b>Привычка \"" + name + "\" успешно создана!</b>  🥳"
+}
+
 func HabitListMsg(habits []models.Habit) string {
 	var msg string
 

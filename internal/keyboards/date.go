@@ -8,7 +8,7 @@ const (
 	DoneEmoji = "✅"
 )
 
-func DaysPickerKeyboard(days []string) tgbotapi.InlineKeyboardMarkup {
+func DaysPickerKeyboard(day *string) tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 
 	daysOfWeek := []CallBackData{
@@ -21,9 +21,9 @@ func DaysPickerKeyboard(days []string) tgbotapi.InlineKeyboardMarkup {
 		{Name: "Воскресенье", Data: "7"},
 	}
 
-	for _, day := range days {
+	if day != nil {
 		for i, dayOfWeek := range daysOfWeek {
-			if day == dayOfWeek.Data {
+			if *day == dayOfWeek.Data {
 				daysOfWeek[i].Name += "  " + DoneEmoji
 				break
 			}
@@ -31,10 +31,10 @@ func DaysPickerKeyboard(days []string) tgbotapi.InlineKeyboardMarkup {
 	}
 
 	for _, day := range daysOfWeek {
-		rows = append(rows, createInlineKeyboardRow(day.Name, day.Data))
+		rows = append(rows, createInlineKeyboardRow(day.Name, "day__"+day.Data))
 	}
 
-	if len(days) > 0 {
+	if day != nil {
 		btn := tgbotapi.NewInlineKeyboardButtonData("Продолжить  ⏩", "continue")
 		rows = append(rows, []tgbotapi.InlineKeyboardButton{btn})
 	}

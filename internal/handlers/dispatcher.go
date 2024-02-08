@@ -22,27 +22,35 @@ func NewDispatcher(bot *HabitBot) *Dispatcher {
 	return &Dispatcher{habitBot: bot, handlersFilters: make([]HandlerFilter, 0), Routers: make([]*Router, 0)}
 }
 
-func (d *Dispatcher) Message(filter Filter, handler HandlerFunc) {
+func (d *Dispatcher) Message(handler HandlerFunc, filters_ ...filters.Filter) {
 	messageFilter := filters.F(func(update *tgbotapi.Update) bool {
-		return filter(update) && update.Message != nil
+
+		f := filters.F(filters_...)
+
+		return f(update) && update.Message != nil
 	})
 
 	d.register(messageFilter, handler)
 }
 
-func (d *Dispatcher) CallBackQuery(filter Filter, handler HandlerFunc) {
+func (d *Dispatcher) CallBackQuery(handler HandlerFunc, filters_ ...filters.Filter) {
 	callBackFilter := filters.F(func(update *tgbotapi.Update) bool {
-		return filter(update) && update.CallbackQuery != nil
+
+		f := filters.F(filters_...)
+
+		return f(update) && update.CallbackQuery != nil
 	})
 
 	d.register(callBackFilter, handler)
 }
 
-func (d *Dispatcher) FSMState(state string, filter Filter, handler HandlerFunc) {
+func (d *Dispatcher) FSMState(state string, handler HandlerFunc, filters_ ...filters.Filter) {
 	filterWithFSMState := func(update *tgbotapi.Update) bool {
 		FSMState := d.habitBot.FSM(update).Current()
 
-		return filter(update) && state == FSMState
+		f := filters.F(filters_...)
+
+		return f(update) && state == FSMState
 	}
 
 	d.register(filterWithFSMState, handler)

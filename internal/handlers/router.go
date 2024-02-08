@@ -15,27 +15,35 @@ func NewRouter(habitBot *HabitBot) *Router {
 	}
 }
 
-func (r *Router) Message(filter Filter, handler HandlerFunc) {
+func (r *Router) Message(handler HandlerFunc, filters_ ...filters.Filter) {
 	messageFilter := filters.F(func(update *tgbotapi.Update) bool {
-		return filter(update) && update.Message != nil
+
+		f := filters.F(filters_...)
+
+		return f(update) && update.Message != nil
 	})
 
 	r.register(messageFilter, handler)
 }
 
-func (r *Router) CallBackQuery(filter Filter, handler HandlerFunc) {
+func (r *Router) CallBackQuery(handler HandlerFunc, filters_ ...filters.Filter) {
 	callBackFilter := filters.F(func(update *tgbotapi.Update) bool {
-		return filter(update) && update.CallbackQuery != nil
+
+		f := filters.F(filters_...)
+
+		return f(update) && update.CallbackQuery != nil
 	})
 
 	r.register(callBackFilter, handler)
 }
 
-func (r *Router) FSMState(state string, filter Filter, handler HandlerFunc) {
+func (r *Router) FSMState(state string, handler HandlerFunc, filters_ ...filters.Filter) {
 	filterWithFSMState := func(update *tgbotapi.Update) bool {
 		FSMState := r.habitBot.FSM(update).Current()
 
-		return filter(update) && state == FSMState
+		f := filters.F(filters_...)
+
+		return f(update) && state == FSMState && update.CallbackQuery == nil
 	}
 
 	r.register(filterWithFSMState, handler)

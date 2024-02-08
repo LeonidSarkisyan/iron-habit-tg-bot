@@ -15,3 +15,28 @@ func CancelHabitKeyboard(habit models.Habit) tgbotapi.InlineKeyboardMarkup {
 	))
 	return keyboard
 }
+
+func BeforeCreateHabitReplyKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	k := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("Создать привычку  ✨"),
+		),
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("Отмена  ❌"),
+		),
+	)
+
+	k.OneTimeKeyboard = true
+
+	return k
+}
+
+func CreateDayTimeInlineKeyboard(habitID int) tgbotapi.InlineKeyboardMarkup {
+	keyboard := tgbotapi.InlineKeyboardMarkup{}
+	keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData(
+			"Добавить напоминание  🔔", "add_reminder__"+strconv.Itoa(habitID),
+		),
+	))
+	return keyboard
+}

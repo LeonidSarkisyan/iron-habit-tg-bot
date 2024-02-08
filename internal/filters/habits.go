@@ -17,6 +17,18 @@ func IsCallBackDataStartWithTime(update *tgbotapi.Update) bool {
 	return strings.HasPrefix(update.CallbackQuery.Data, "time__")
 }
 
+func IsCallBackDataStartWithDay(update *tgbotapi.Update) bool {
+	return strings.HasPrefix(update.CallbackQuery.Data, "day__")
+}
+
 func IsCallBackDataCancelHabit(update *tgbotapi.Update) bool {
 	return strings.HasPrefix(update.CallbackQuery.Data, "cancel_habit__")
+}
+
+func IsCreateHabitText(update *tgbotapi.Update) bool {
+	return update.Message.Text == "Создать привычку  ✨"
+}
+
+func IsCancelCreateHabitText(update *tgbotapi.Update) bool {
+	return update.Message.Text == "Отмена  ❌"
 }

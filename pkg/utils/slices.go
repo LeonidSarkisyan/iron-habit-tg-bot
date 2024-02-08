@@ -40,3 +40,12 @@ func AddUniqueValueToSlice[T string | int](value T, slice []T) []T {
 
 	return slice
 }
+
+func All(arr []bool) bool {
+	for _, v := range arr {
+		if !v {
+			return false
+		}
+	}
+	return true
+}

@@ -15,10 +15,10 @@ const (
 func NewCommandRouter(habitBot *HabitBot) *Router {
 	r := NewRouter(habitBot)
 
-	r.Message(filters.F(filters.IsCommandStart), habitBot.HandleStartCommand)
-	r.Message(filters.F(filters.IsCommandCancel), habitBot.HandleCancelCommand)
-	r.Message(filters.F(filters.IsCommandAddNewHabit), habitBot.HandleAddNewHabitCommand)
-	r.Message(filters.F(filters.IsCommandMyHabits), habitBot.Habits)
+	r.Message(habitBot.HandleStartCommand, filters.IsCommandStart)
+	r.Message(habitBot.HandleCancelCommand, filters.IsCommandCancel)
+	r.Message(habitBot.HandleAddNewHabitCommand, filters.IsCommandAddNewHabit)
+	r.Message(habitBot.Habits, filters.IsCommandMyHabits)
 
 	return r
 }

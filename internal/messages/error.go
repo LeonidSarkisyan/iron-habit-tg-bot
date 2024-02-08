@@ -6,7 +6,7 @@ const (
 	HabitCreateErrorMsg = "Ошибка сохранения привычки. Попробуйте ещё раз"
 
 	InvalidInputMsg                 = "Введено некорректное значение. Попробуйте ещё раз"
-	InvalidRangeInputWarningTimeMsg = "Число должно быть в диапазоне от 0 до 60"
+	InvalidRangeInputWarningTimeMsg = "Число должно быть в диапазоне от 15 до 300"
 
 	CancelHabitErrorMsg = "Не удалось отменить выполнение привычки. Попробуйте ещё раз"
 

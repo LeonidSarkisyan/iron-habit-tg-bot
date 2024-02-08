@@ -13,12 +13,15 @@ const (
 	GetCompletedTimeState = "gettingCompletedTime"
 
 	GetTextRejectionState = "GetTextRejection"
+
+	CreateHabitState = "createHabit"
 )
 
 func (h *HabitBot) Clear(update *tgbotapi.Update, keys ...string) {
 	for _, key := range keys {
 		h.FSM(update).DeleteMetadata(key)
 	}
+	h.FSM(update).SetState(StartState)
 }
 
 func (h *HabitBot) FSM(update *tgbotapi.Update) *fsm.FSM {
