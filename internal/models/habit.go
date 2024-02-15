@@ -15,6 +15,7 @@ type Habit struct {
 }
 
 type Timestamp struct {
+	ID      int
 	Day     string
 	Time    string
 	HabitID int

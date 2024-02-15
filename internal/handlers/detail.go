@@ -44,7 +44,7 @@ func (h *HabitBot) ShowMenuHabit(update *tgbotapi.Update) {
 
 	if err != nil {
 		msgError := tgbotapi.NewMessage(userID, messages.ErrorGetHabits)
-		h.Bot.Send(msgError)
+		_, _ = h.Bot.Send(msgError)
 		return
 	}
 
@@ -52,4 +52,8 @@ func (h *HabitBot) ShowMenuHabit(update *tgbotapi.Update) {
 	msg := keyboards.EditInlineKeyboard(keyboards.MenuHabitKeyboard(habit, pageInt), update)
 	msg.ParseMode = tgbotapi.ModeHTML
 	_, _ = h.Bot.Send(msg)
+}
+
+func (h *HabitBot) AskNewHabitTitle(update *tgbotapi.Update) {
+
 }

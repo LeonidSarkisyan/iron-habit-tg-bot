@@ -10,9 +10,10 @@ func MenuHabitKeyboard(habit models.Habit, page int) tgbotapi.InlineKeyboardMark
 	var habitButtons [][]tgbotapi.InlineKeyboardButton
 
 	habitID := strconv.Itoa(habit.ID)
+	pageStr := strconv.Itoa(page)
 
 	habitButtons = append(habitButtons, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Список напоминаний  🔔", "reminder_list__"+habitID),
+		tgbotapi.NewInlineKeyboardButtonData("Список напоминаний  🔔", "reminder_list__"+habitID+"__"+pageStr),
 	))
 
 	habitButtons = append(habitButtons, tgbotapi.NewInlineKeyboardRow(
@@ -24,7 +25,7 @@ func MenuHabitKeyboard(habit models.Habit, page int) tgbotapi.InlineKeyboardMark
 	))
 
 	habitButtons = append(habitButtons, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Назад  ⬅️", "habits__page__"+strconv.Itoa(page)),
+		tgbotapi.NewInlineKeyboardButtonData("Назад  ⬅️", "habits__page__"+pageStr),
 	))
 
 	return tgbotapi.NewInlineKeyboardMarkup(habitButtons...)

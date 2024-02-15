@@ -22,4 +22,5 @@ type RejectionStorage interface {
 
 type TimestampStorage interface {
 	Create(timestamp models.Timestamp) error
+	GetByHabitID(habitID int, offset int) ([]models.Timestamp, bool, error)
 }

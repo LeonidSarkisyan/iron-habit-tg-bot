@@ -8,6 +8,8 @@ import (
 
 const (
 	ErrorCreateReminder = "Ошибка при создании напоминания. Попробуйте ещё раз."
+
+	ErrorGetReminders = "Ошибка при получении напоминаний. Попробуйте ещё раз."
 )
 
 func CreateReminderMsg(habitName string, day string, time string) string {
@@ -43,4 +45,8 @@ func TimeWhenDoMsg(days, hours, minutes int) string {
 	}
 
 	return baseMsg
+}
+
+func ReminderListMsg(habitName string) string {
+	return "Ваши напоминания о привычке <b>" + habitName + "</b>:"
 }

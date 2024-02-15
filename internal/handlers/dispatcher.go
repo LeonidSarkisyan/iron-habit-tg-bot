@@ -91,6 +91,10 @@ func (d *Dispatcher) Polling() {
 	for update := range updates {
 		log.Info().Msgf("%+v", update)
 
+		if update.CallbackQuery != nil {
+			log.Info().Str("call back data", update.CallbackQuery.Data).Send()
+		}
+
 		d.PassHandlers(&update)
 	}
 }

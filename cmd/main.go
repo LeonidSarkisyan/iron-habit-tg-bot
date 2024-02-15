@@ -48,11 +48,15 @@ func main() {
 	d := handlers.NewDispatcher(habitBot)
 
 	commandRouter := handlers.NewCommandRouter(habitBot)
+
 	habitsFSMRouter := handlers.NewHabitsFSMRouter(habitBot)
 	habitsCallBackRouter := handlers.NewHabitsCallBackRouter(habitBot)
 	statsRouter := handlers.NewStatsRouter(habitBot)
+
 	habitList := handlers.NewHabitListRouter(habitBot)
 	habitMenu := handlers.NewHabitDetailRouter(habitBot)
+
+	reminderList := handlers.NewReminderRouter(habitBot)
 
 	d.IncludeRouter(commandRouter)
 	d.IncludeRouter(habitsFSMRouter)
@@ -60,6 +64,7 @@ func main() {
 	d.IncludeRouter(statsRouter)
 	d.IncludeRouter(habitList)
 	d.IncludeRouter(habitMenu)
+	d.IncludeRouter(reminderList)
 
 	d.Polling()
 }

@@ -5,6 +5,7 @@ import (
 	"HabitsBot/internal/keyboards"
 	"HabitsBot/internal/messages"
 	"HabitsBot/internal/models"
+	"HabitsBot/internal/pagination"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/rs/zerolog/log"
 	"sort"
@@ -34,10 +35,10 @@ func (h *HabitBot) Habits(u *tgbotapi.Update) {
 		return
 	}
 
-	page := 1
+	hp := pagination.NewHabitPagination(existsMore)
 
 	msg := tgbotapi.NewMessage(userID, messages.HabitListMsg(habits))
-	msg.ReplyMarkup = keyboards.HabitsListKeyboard(habits, page, existsMore)
+	msg.ReplyMarkup = keyboards.HabitsListKeyboard(habits, hp)
 	msg.ParseMode = "HTML"
 	h.Bot.Send(msg)
 }
@@ -74,7 +75,10 @@ func (h *HabitBot) HabitsWithPage(update *tgbotapi.Update) {
 		return
 	}
 
-	msg := keyboards.EditInlineKeyboard(keyboards.HabitsListKeyboard(habits, pageInt, existsMore), update)
+	hp := pagination.NewHabitPagination(existsMore)
+	hp.Page = pageInt
+
+	msg := keyboards.EditInlineKeyboard(keyboards.HabitsListKeyboard(habits, hp), update)
 	msg.ParseMode = "HTML"
 
 	_, _ = h.Bot.Send(msg)
