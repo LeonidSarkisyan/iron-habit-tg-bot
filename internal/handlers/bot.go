@@ -10,13 +10,22 @@ import (
 	"sync"
 )
 
+type TimeShedulerData struct {
+	models.Habit
+	models.Timestamp
+}
+
+type TimeShedulerChan = chan TimeShedulerData
+
 type HabitBot struct {
 	Bot              *tgbotapi.BotAPI
 	FSMMap           map[int64]*fsm.FSM
 	mu               sync.Mutex
 	HabitStorage     storages.HabitStorage
+	TimestampStorage storages.TimestampStorage
 	RejectionStorage storages.RejectionStorage
-	TimeShedulerChan chan models.Habit
+	ExecutionStorage storages.ExecutionStorage
+	TimeShedulerChan TimeShedulerChan
 	ControlChanMap   map[int]*chan string
 	CompleteChanMap  map[int]*chan string
 }
@@ -28,7 +37,9 @@ func New(bot *tgbotapi.BotAPI, db *pgx.Conn) *HabitBot {
 		FSMMap:           make(map[int64]*fsm.FSM),
 		HabitStorage:     postgres.New(db),
 		RejectionStorage: postgres.NewRejection(db),
-		TimeShedulerChan: make(chan models.Habit),
+		TimestampStorage: postgres.NewTimestamp(db),
+		ExecutionStorage: postgres.NewExecutionStorage(db),
+		TimeShedulerChan: make(TimeShedulerChan),
 		ControlChanMap:   make(map[int]*chan string),
 		CompleteChanMap:  make(map[int]*chan string),
 	}

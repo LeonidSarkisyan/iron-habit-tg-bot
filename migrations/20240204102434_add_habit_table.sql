@@ -9,7 +9,7 @@ CREATE TABLE habits (
 CREATE TABLE timestamps (
     id SERIAL PRIMARY KEY,
     day VARCHAR(20) NOT NULL,
-    time VARCHAR(5) NOT NULL,
+    time_ VARCHAR(5) NOT NULL,
     habit_id INTEGER REFERENCES habits(id) ON DELETE CASCADE
 );
 -- +goose StatementEnd

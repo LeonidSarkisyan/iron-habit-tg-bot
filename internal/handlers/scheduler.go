@@ -11,6 +11,7 @@ import (
 func (h *HabitBot) SendNotification(habit models.Habit) {
 	msg := tgbotapi.NewMessage(habit.UserID, fmt.Sprintf("Напоминаю о вашей привычке: <b>%s!</b>", habit.Title))
 	msg.ParseMode = "html"
+	msg.ReplyMarkup = keyboards.CompleteHabitKeyboard(habit)
 	_, err := h.Bot.Send(msg)
 	if err != nil {
 		log.Error().Err(err).Msg(err.Error())

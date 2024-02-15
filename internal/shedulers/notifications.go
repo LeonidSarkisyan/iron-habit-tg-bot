@@ -8,6 +8,9 @@ import (
 
 func ScheduleTaskAWeek(chanControl *chan string, weekday time.Weekday, hour, minute int, task func()) {
 	go func() {
+		defer func() {
+			log.Info().Any("weekday", weekday).Int("hour", hour).Int("minute", minute).Msg("Отмена таймера")
+		}()
 		now := time.Now()
 		currentWeekday := now.Weekday()
 
@@ -58,7 +61,7 @@ func ScheduleTaskAWeek(chanControl *chan string, weekday time.Weekday, hour, min
 func getNextWeekday(currentTime time.Time, targetWeekday time.Weekday) time.Time {
 	daysToAdd := (int(targetWeekday) - int(currentTime.Weekday()) + 7) % 7
 	if daysToAdd == 0 {
-		daysToAdd = 7 // Если текущий день недели уже является указанным днем недели, добавляем 7 дней
+		daysToAdd = 7
 	}
 	return currentTime.AddDate(0, 0, daysToAdd)
 }

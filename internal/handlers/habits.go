@@ -5,6 +5,7 @@ import (
 	"HabitsBot/internal/keyboards"
 	"HabitsBot/internal/messages"
 	"HabitsBot/internal/models"
+	"HabitsBot/pkg/utils"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/rs/zerolog/log"
 	"strconv"
@@ -39,6 +40,8 @@ func NewHabitsCallBackRouter(habitBot *HabitBot) *Router {
 	r.CallBackQuery(habitBot.AskDayReminder, filters.IsCallBackDataAddReminder)
 	r.CallBackQuery(habitBot.AskHabitTime, filters.IsCallBackDataContinue)
 	r.CallBackQuery(habitBot.GetHabitDay, filters.IsCallBackDataStartWithDay)
+	r.CallBackQuery(habitBot.CreateReminder, filters.IsCallBackDataTimeContinue)
+	r.CallBackQuery(habitBot.GetHabitTime, filters.IsCallBackDataStartWithTime)
 
 	return r
 }
@@ -138,8 +141,9 @@ func (h *HabitBot) AskDayReminder(update *tgbotapi.Update) {
 
 	msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, messages.AskHabitDaysMsg)
 	msg.ReplyMarkup = keyboards.DaysPickerKeyboard(nil)
-	_, _ = h.Bot.Send(msg)
+	message, _ := h.Bot.Send(msg)
 
+	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
 	h.AnswerCallbackQuery(update)
 }
 
@@ -151,8 +155,9 @@ func (h *HabitBot) GetHabitDay(update *tgbotapi.Update) {
 	inlineKeyboard := keyboards.DaysPickerKeyboard(&dayFromCallback)
 	msg := keyboards.EditInlineKeyboard(inlineKeyboard, update)
 
-	_, _ = h.Bot.Send(msg)
+	message, _ := h.Bot.Send(msg)
 
+	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
 	h.AnswerCallbackQuery(update)
 }
 
@@ -161,176 +166,91 @@ func (h *HabitBot) AskHabitTime(update *tgbotapi.Update) {
 
 	msg.ReplyMarkup = keyboards.TimePickerKeyboard(nil)
 
-	_, _ = h.Bot.Send(msg)
+	message, _ := h.Bot.Send(msg)
 
+	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
 	h.AnswerCallbackQuery(update)
 }
 
 // CreateReminder callBackData == "continue"
 func (h *HabitBot) CreateReminder(update *tgbotapi.Update) {
-	habitName, nameExists := h.FSM(update).Metadata("habit_name")
-	days, dayExists := h.FSM(update).Metadata("days")
+	habitID, habitIDExists := h.FSM(update).Metadata("habit_id")
+	day, dayExists := h.FSM(update).Metadata("day")
+	time_, timeExists := h.FSM(update).Metadata("time")
 
-	if nameExists && dayExists {
-		msgText := messages.ShowHabitNameAndDaysMsg(habitName.(string), days.([]string))
-		msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, msgText)
-		message, _ := h.Bot.Send(msg)
-		h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
-	} else {
-		log.Error().Msg("Не хватает метаданных")
+	if habitIDExists && dayExists && timeExists {
+
+		day = strings.Replace(day.(string), "day__", "", 1)
+		time_ = strings.Replace(time_.(string), "time__", "", 1)
+
+		ts := models.Timestamp{
+			HabitID: habitID.(int),
+			Day:     day.(string),
+			Time:    time_.(string),
+		}
+
+		err := h.TimestampStorage.Create(ts)
+
+		if err != nil {
+			log.Error().Err(err).Msg(err.Error())
+			msgTextError := messages.ErrorCreateReminder
+			msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, msgTextError)
+			_, _ = h.Bot.Send(msg)
+		}
+
+		habit, err := h.HabitStorage.Get(update.CallbackQuery.From.ID, habitID.(int))
+
+		if err != nil {
+			log.Error().Err(err).Send()
+		}
+
+		h.TimeShedulerChan <- TimeShedulerData{habit, ts}
+
+		msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID,
+			messages.CreateReminderMsg(habit.Title, day.(string), time_.(string)))
+		msg.ParseMode = tgbotapi.ModeHTML
+		_, _ = h.Bot.Send(msg)
+
+		hour, minute, err := utils.ExtractHoursAndMinutes("time__" + time_.(string))
+
+		if err != nil {
+			log.Error().Err(err).Send()
+		}
+
+		day, err := strconv.Atoi(day.(string))
+
+		if err != nil {
+			log.Error().Err(err).Send()
+		}
+
+		dayWeekDay, err := utils.WeekDayFromInt(day)
+
+		if err != nil {
+			log.Error().Err(err).Send()
+		}
+
+		dayUntil, hourUntil, minuteUntil := utils.TimeUntil(dayWeekDay, hour, minute)
+
+		msgText := messages.TimeWhenDoMsg(dayUntil, hourUntil, minuteUntil)
+		msg = tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, msgText)
+		_, _ = h.Bot.Send(msg)
 	}
 
-	msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, messages.AskHabitTimeMsg)
-
-	msg.ReplyMarkup = keyboards.TimePickerKeyboard([]string{})
-
-	message, _ := h.Bot.Send(msg)
-
-	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
-
+	h.deleteMessage(update)
 	h.AnswerCallbackQuery(update)
 }
 
 func (h *HabitBot) GetHabitTime(update *tgbotapi.Update) {
 	callBackData := update.CallbackQuery.Data
 
-	times, exists := h.FSM(update).Metadata("times")
+	log.Info().Any("callBackData", callBackData).Msg("callBackData")
 
-	if !exists {
-		h.FSM(update).SetMetadata("times", []string{callBackData})
-		times = []string{callBackData}
-	} else {
-		timeExists := false
-
-		for i, time := range times.([]string) {
-			if time == callBackData {
-				timeExists = true
-				times = append(times.([]string)[:i], times.([]string)[i+1:]...)
-				break
-			}
-		}
-
-		if !timeExists {
-			times = append(times.([]string), callBackData)
-		}
-
-		h.FSM(update).SetMetadata("times", times)
-	}
-
-	inlineKeyboard := keyboards.TimePickerKeyboard(times.([]string))
+	inlineKeyboard := keyboards.TimePickerKeyboard(&callBackData)
 	msg := keyboards.EditInlineKeyboard(inlineKeyboard, update)
 
 	message, _ := h.Bot.Send(msg)
 
+	h.FSM(update).SetMetadata("time", callBackData)
 	h.createOrUpdateSliceMetadata(update, "messages_ids", message.MessageID)
-
 	h.AnswerCallbackQuery(update)
-}
-
-func (h *HabitBot) HandleSaveHabit(update *tgbotapi.Update) {
-
-	msgText := messages.InputWarningTimeMsg
-	msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, msgText)
-	h.Bot.Send(msg)
-	h.FSM(update).SetState(GetWarningTimeState)
-
-	h.AnswerCallbackQuery(update)
-}
-
-func (h *HabitBot) GetHabitWarningTime(update *tgbotapi.Update) {
-	warningTimeStr := update.Message.Text
-
-	warningTime, err := strconv.Atoi(warningTimeStr)
-
-	if err != nil {
-		log.Error().Err(err).Msg(err.Error())
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidInputMsg)
-		h.Bot.Send(msg)
-		return
-	}
-
-	if warningTime < 5 || warningTime > 60 {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidRangeInputWarningTimeMsg)
-		h.Bot.Send(msg)
-		return
-	}
-
-	h.FSM(update).SetMetadata("warning_time", warningTime)
-
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.GetWarningTimeMsg)
-	h.Bot.Send(msg)
-
-	msg = tgbotapi.NewMessage(update.Message.Chat.ID, messages.InputCompleteTimeMsg)
-	h.Bot.Send(msg)
-
-	h.FSM(update).SetState(GetCompletedTimeState)
-}
-
-// CancelHabit CALL_BACK_DATA = cancel_habit__{habit_id}
-func (h *HabitBot) CancelHabit(update *tgbotapi.Update) {
-	habitID := strings.Replace(update.CallbackQuery.Data, "cancel_habit__", "", 1)
-
-	h.createOrUpdateSliceMetadata(update, "messages_ids", update.CallbackQuery.Message.MessageID)
-
-	msgAsk := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, messages.GetTextRejectionMsg)
-	h.Bot.Send(msgAsk)
-
-	h.FSM(update).SetMetadata("habit_id", habitID)
-	h.FSM(update).SetState(GetTextRejectionState)
-	h.AnswerCallbackQuery(update)
-}
-
-// FSM STATE = GetTextRejectionState
-func (h *HabitBot) GetTextRejection(update *tgbotapi.Update) {
-	if update.Message.Text == "" {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, messages.InvalidRejectionMsg)
-		h.Bot.Send(msg)
-		return
-	}
-
-	habitID, exists := h.FSM(update).Metadata("habit_id")
-
-	if !exists {
-		log.Error().Msg("почему-то habit_id не существует")
-		return
-	}
-
-	text := update.Message.Text
-
-	habitIDInt, err := strconv.Atoi(habitID.(string))
-
-	if err != nil {
-		log.Error().Err(err).Msg("не удалось преобразовать habit_id в int")
-		return
-	}
-
-	rejection := models.Rejection{
-		Text:    text,
-		HabitID: habitIDInt,
-	}
-
-	err = h.RejectionStorage.Create(rejection)
-
-	if err != nil {
-		msgText := tgbotapi.NewMessage(update.Message.Chat.ID, messages.RejectionCreateErrorMsg)
-		h.Bot.Send(msgText)
-		return
-	}
-
-	*h.ControlChanMap[habitIDInt] <- "cancel"
-
-	habitName, err := h.HabitStorage.Name(habitIDInt, update.Message.From.ID)
-
-	if err != nil {
-		msg := tgbotapi.NewMessage(update.Message.From.ID, messages.CancelHabitErrorMsg)
-		h.Bot.Send(msg)
-		return
-	}
-
-	msg := tgbotapi.NewMessage(update.Message.From.ID, messages.CancelHabitMsg(habitName, text))
-	h.Bot.Send(msg)
-
-	h.deleteMessage(update)
-	h.FSM(update).DeleteMetadata("habit_id")
-	h.FSM(update).SetState(StartState)
 }

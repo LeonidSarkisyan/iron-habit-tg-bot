@@ -16,3 +16,11 @@ func IsCallbackQuery(update *tgbotapi.Update) bool {
 func IsCallBackDataAddReminder(update *tgbotapi.Update) bool {
 	return strings.HasPrefix(update.CallbackQuery.Data, "add_reminder__")
 }
+
+func IsCallBackCompleteHabit(update *tgbotapi.Update) bool {
+	return strings.HasPrefix(update.CallbackQuery.Data, "complete_habit__")
+}
+
+func IsCallBackCancelHabit(update *tgbotapi.Update) bool {
+	return strings.HasPrefix(update.CallbackQuery.Data, "cancel_habit__")
+}

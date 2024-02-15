@@ -11,65 +11,81 @@ import (
 )
 
 var DaysWeek = map[string]time.Weekday{
-	"Понедельник": time.Monday,
-	"Вторник":     time.Tuesday,
-	"Среда":       time.Wednesday,
-	"Четверг":     time.Thursday,
-	"Пятница":     time.Friday,
-	"Суббота":     time.Saturday,
-	"Воскресенье": time.Sunday,
+	"1": time.Monday,
+	"2": time.Tuesday,
+	"3": time.Wednesday,
+	"4": time.Thursday,
+	"5": time.Friday,
+	"6": time.Saturday,
+	"7": time.Sunday,
 }
 
-func AddManyHabitsToTiming(habits []models.Habit, habitBot *handlers.HabitBot) {
+func AddManyHabitsToTiming(tsds []models.TimeShedulerData, habitBot *handlers.HabitBot) {
 	var mu = &sync.Mutex{}
-	for _, habit := range habits {
-		mu.Lock()
-		go AddHabitToTiming(habit, habitBot)
-		mu.Unlock()
+	for _, tsd := range tsds {
+		go AddHabitToTiming(tsd.Habit, tsd.Timestamp, habitBot, mu)
 	}
 }
 
-func AddHabitToTiming(habit models.Habit, habitBot *handlers.HabitBot) {
+func AddHabitToTiming(habit models.Habit, ts models.Timestamp, habitBot *handlers.HabitBot, mu *sync.Mutex) {
+	day, ok := DaysWeek[ts.Day]
 
-	for _, ts := range habit.Timestamps {
-		day, ok := DaysWeek[ts.Day]
-
-		if !ok {
-
-			// todo: добавить логирование ошибки при невалидном дне недели в модели Habit и в бд
-			continue
-		}
-
-		ts.Time = "time__" + ts.Time
-
-		hour, minute, err := utils.ExtractHoursAndMinutes(ts.Time)
-
-		if err != nil {
-			log.Error().Err(err).Msg("Не удалось распарсить время в модели Habit")
-		}
-
-		chanControl := make(chan string)
-		chanComplete := make(chan string)
-
-		habitBot.CompleteChanMap[habit.ID] = &chanComplete
-		habitBot.ControlChanMap[habit.ID] = &chanControl
-
-		ScheduleTaskAWeek(&chanControl, day, hour, minute, func() {
-			habitBot.SendNotification(habit)
-			f := func() {
-				msgText := "Вы не успели выполнить привычку " + "<b>" + habit.Title + "</b>!  😤"
-				msg := tgbotapi.NewMessage(habit.UserID, msgText)
-				msg.ParseMode = tgbotapi.ModeHTML
-				habitBot.Bot.Send(msg)
-			}
-			delay := time.Duration(habit.CompletedTime) * time.Minute
-			time.AfterFunc(delay, f)
-		})
-
-		dayWarning, hourWarning, minuteWarning := utils.GetWarningHoursAndMinutes(day, hour, minute, habit.WarningTime)
-
-		ScheduleTaskAWeek(&chanControl, dayWarning, hourWarning, minuteWarning, func() {
-			habitBot.SendWarningBeforeNotification(habit)
-		})
+	if !ok {
+		log.Error().Msg("не был выбран день недели, have = " + ts.Day + " need = [1, 7]")
+		return
 	}
+
+	ts.Time = "time__" + ts.Time
+
+	hour, minute, err := utils.ExtractHoursAndMinutes(ts.Time)
+
+	if err != nil {
+		log.Error().Err(err).Msg("Не удалось распарсить время в модели Habit")
+	}
+
+	chanComplete := make(chan string)
+	chanControl := make(chan string)
+
+	mu.Lock()
+	habitBot.CompleteChanMap[habit.ID] = &chanComplete
+	habitBot.ControlChanMap[habit.ID] = &chanControl
+	mu.Unlock()
+
+	ScheduleTaskAWeek(&chanControl, day, hour, minute, func() {
+		habitBot.SendNotification(habit)
+		timeout := time.Minute * time.Duration(habit.CompletedTime)
+
+		logic := func() {
+			msgText := "Вы не успели выполнить привычку " + "<b>" + habit.Title + "</b>!  😤"
+			msg := tgbotapi.NewMessage(habit.UserID, msgText)
+			msg.ParseMode = tgbotapi.ModeHTML
+			habitBot.Bot.Send(msg)
+
+			r := models.Rejection{
+				Text:     "Не выполнение привычки вовремя",
+				DateTime: time.Now(),
+				HabitID:  habit.ID,
+			}
+
+			err = habitBot.RejectionStorage.Create(r)
+
+			if err != nil {
+				log.Error().Err(err).Msg("ошибка при создании отказа по дедлайну")
+			}
+		}
+
+		select {
+		case <-time.After(timeout):
+			logic()
+		case <-chanComplete:
+			log.Info().Msg("Пользователь выполнил привычку")
+			return
+		}
+	})
+
+	dayWarning, hourWarning, minuteWarning := utils.GetWarningHoursAndMinutes(day, hour, minute, habit.WarningTime)
+
+	ScheduleTaskAWeek(&chanControl, dayWarning, hourWarning, minuteWarning, func() {
+		habitBot.SendWarningBeforeNotification(habit)
+	})
 }

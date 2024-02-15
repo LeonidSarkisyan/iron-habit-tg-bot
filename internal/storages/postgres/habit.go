@@ -30,7 +30,7 @@ func (h *HabitStorage) Create(habit models.Habit) (int, error) {
 	var habitID int
 
 	err = h.db.QueryRow(
-		context.Background(), stmt, habit.Title, habit.WarningTime, habit.CompletedTime, habit.UserID,
+		context.Background(), stmt, habit.Title, 15, habit.CompletedTime, habit.UserID,
 	).Scan(&habitID)
 
 	if err != nil {
@@ -71,51 +71,41 @@ func (h *HabitStorage) Name(habitID int, userID int64) (string, error) {
 	return name, err
 }
 
-func (h *HabitStorage) Get(userID int64) (models.Habit, error) {
+func (h *HabitStorage) Get(userID int64, habitID int) (models.Habit, error) {
 	query := `
-	SELECT h.id, h.title, h.time_warning, h.time_completed, t.day, t.time FROM habits h 
-	JOIN timestamps t ON t.habit_id = h.id
-	WHERE h.user_id = $1
+	SELECT h.id, h.title, h.time_warning, h.time_completed, user_id FROM habits h 
+	WHERE h.user_id = $1 AND h.id = $2;
 	`
 
 	var habit models.Habit
 
-	rows, err := h.db.Query(context.Background(), query, userID)
-
-	defer rows.Close()
+	err := h.db.QueryRow(context.Background(), query, userID, habitID).Scan(
+		&habit.ID, &habit.Title, &habit.WarningTime, &habit.CompletedTime, &habit.UserID)
 
 	if err != nil {
 		return habit, err
 	}
 
-	for rows.Next() {
-		var ts models.Timestamp
-		err = rows.Scan(&habit.ID, &habit.Title, &habit.WarningTime, &habit.CompletedTime, &ts.Day, &ts.Time)
-		if err != nil {
-			return habit, err
-		}
-		habit.Timestamps = append(habit.Timestamps, ts)
-	}
-
 	return habit, nil
 }
 
-func (h *HabitStorage) GetAll(userID int64, offset int) ([]models.Habit, error) {
+func (h *HabitStorage) GetAll(userID int64, offset int) ([]models.Habit, bool, error) {
 	var habits []models.Habit
+	var existsMore = false
 
 	query := `
-	SELECT h.id, h.title, ts.day, ts.time
-	FROM habits h 
-	LEFT JOIN timestamps ts ON ts.habit_id = h.id
+	SELECT h.id, h.title,
+	   EXISTS (
+		   SELECT 1
+		   FROM habits h
+		   WHERE h.user_id = $1
+		   OFFSET $2 + 5
+		   LIMIT 1
+	   ) AS more_records_exist
+	FROM habits h
 	WHERE h.user_id = $1
-	AND h.id IN (
-		SELECT id
-		FROM habits
-		WHERE user_id = $1
-		ORDER BY id ASC
-		LIMIT 5 OFFSET $2
-	)
-	ORDER BY h.id ASC;
+	ORDER BY h.id ASC
+	LIMIT 5 OFFSET $2;
     `
 
 	habitsMap := make(map[int]*models.Habit)
@@ -123,14 +113,14 @@ func (h *HabitStorage) GetAll(userID int64, offset int) ([]models.Habit, error) 
 	rows, err := h.db.Query(context.Background(), query, userID, offset)
 	if err != nil {
 		log.Error().Err(err).Msg("Error executing query")
-		return habits, err
+		return habits, false, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var h models.Habit
 		var ts models.Timestamp
-		if err := rows.Scan(&h.ID, &h.Title, &ts.Day, &ts.Time); err != nil {
+		if err := rows.Scan(&h.ID, &h.Title, &existsMore); err != nil {
 			log.Error().Err(err).Msg("Error scanning row")
 			continue
 		}
@@ -150,58 +140,43 @@ func (h *HabitStorage) GetAll(userID int64, offset int) ([]models.Habit, error) 
 		habits = append(habits, *habit)
 	}
 
-	return habits, nil
+	return habits, existsMore, nil
 }
 
-func (h *HabitStorage) Habits() ([]models.Habit, error) {
-	var habits []models.Habit
+func (h *HabitStorage) Habits() ([]models.TimeShedulerData, error) {
+	var tsds []models.TimeShedulerData
 
 	query := `
 	SELECT h.id, h.title, h.time_warning, h.time_completed, h.user_id, ts.day, ts.time
 	FROM habits h 
-	LEFT JOIN timestamps ts ON ts.habit_id = h.id
-	AND h.id IN (
-		SELECT id
-		FROM habits
-		ORDER BY id ASC
-	)
+	RIGHT JOIN timestamps ts ON ts.habit_id = h.id
 	ORDER BY h.id ASC;
     `
-
-	habitsMap := make(map[int]*models.Habit)
 
 	rows, err := h.db.Query(context.Background(), query)
 	if err != nil {
 		log.Error().Err(err).Msg("Error executing query")
-		return habits, err
+		return tsds, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
+		var tsd models.TimeShedulerData
 		var h models.Habit
-		var ts models.Timestamp
-		if err := rows.Scan(&h.ID, &h.Title, &h.WarningTime, &h.CompletedTime, &h.UserID, &ts.Day, &ts.Time); err != nil {
+		var t models.Timestamp
+
+		err = rows.Scan(&h.ID, &h.Title, &h.WarningTime, &h.CompletedTime, &h.UserID, &t.Day, &t.Time)
+
+		if err != nil {
 			log.Error().Err(err).Msg("Error scanning row")
 			continue
 		}
 
-		if _, ok := habitsMap[h.ID]; !ok {
-			habitsMap[h.ID] = &models.Habit{
-				ID:            h.ID,
-				Title:         h.Title,
-				WarningTime:   h.WarningTime,
-				CompletedTime: h.CompletedTime,
-				UserID:        h.UserID,
-				Timestamps:    make([]models.Timestamp, 0),
-			}
-		}
+		tsd.Habit = h
+		tsd.Timestamp = t
 
-		habitsMap[h.ID].Timestamps = append(habitsMap[h.ID].Timestamps, ts)
+		tsds = append(tsds, tsd)
 	}
 
-	for _, habit := range habitsMap {
-		habits = append(habits, *habit)
-	}
-
-	return habits, nil
+	return tsds, nil
 }

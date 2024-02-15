@@ -3,6 +3,7 @@ package handlers
 import (
 	"HabitsBot/internal/filters"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/rs/zerolog/log"
 )
 
 type Filter func(update *tgbotapi.Update) bool
@@ -13,13 +14,13 @@ type HandlerFilter struct {
 }
 
 type Dispatcher struct {
-	habitBot        *HabitBot
+	HabitBot        *HabitBot
 	handlersFilters []HandlerFilter
 	Routers         []*Router
 }
 
 func NewDispatcher(bot *HabitBot) *Dispatcher {
-	return &Dispatcher{habitBot: bot, handlersFilters: make([]HandlerFilter, 0), Routers: make([]*Router, 0)}
+	return &Dispatcher{HabitBot: bot, handlersFilters: make([]HandlerFilter, 0), Routers: make([]*Router, 0)}
 }
 
 func (d *Dispatcher) Message(handler HandlerFunc, filters_ ...filters.Filter) {
@@ -46,7 +47,7 @@ func (d *Dispatcher) CallBackQuery(handler HandlerFunc, filters_ ...filters.Filt
 
 func (d *Dispatcher) FSMState(state string, handler HandlerFunc, filters_ ...filters.Filter) {
 	filterWithFSMState := func(update *tgbotapi.Update) bool {
-		FSMState := d.habitBot.FSM(update).Current()
+		FSMState := d.HabitBot.FSM(update).Current()
 
 		f := filters.F(filters_...)
 
@@ -79,6 +80,19 @@ func (d *Dispatcher) PassHandlers(update *tgbotapi.Update) {
 
 func (d *Dispatcher) IncludeRouter(router *Router) {
 	d.Routers = append(d.Routers, router)
+}
+
+func (d *Dispatcher) Polling() {
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+
+	updates := d.HabitBot.Bot.GetUpdatesChan(u)
+
+	for update := range updates {
+		log.Info().Msgf("%+v", update)
+
+		d.PassHandlers(&update)
+	}
 }
 
 func (d *Dispatcher) register(filter func(update *tgbotapi.Update) bool, handler HandlerFunc) {

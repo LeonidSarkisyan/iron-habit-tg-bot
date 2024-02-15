@@ -33,7 +33,6 @@ func main() {
 	handlers.MustCommands(bot)
 
 	habitBot := handlers.New(bot, db)
-
 	habits, err := habitBot.HabitStorage.Habits()
 
 	if err != nil {
@@ -41,11 +40,9 @@ func main() {
 	}
 
 	go shedulers.AddManyHabitsToTiming(habits, habitBot)
-
 	go shedulers.HabitListener(habitBot)
 
 	log.Info().Msg("Таймеры привычек были запущены")
-
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
 	d := handlers.NewDispatcher(habitBot)
@@ -53,19 +50,16 @@ func main() {
 	commandRouter := handlers.NewCommandRouter(habitBot)
 	habitsFSMRouter := handlers.NewHabitsFSMRouter(habitBot)
 	habitsCallBackRouter := handlers.NewHabitsCallBackRouter(habitBot)
+	statsRouter := handlers.NewStatsRouter(habitBot)
+	habitList := handlers.NewHabitListRouter(habitBot)
+	habitMenu := handlers.NewHabitDetailRouter(habitBot)
 
 	d.IncludeRouter(commandRouter)
 	d.IncludeRouter(habitsFSMRouter)
 	d.IncludeRouter(habitsCallBackRouter)
+	d.IncludeRouter(statsRouter)
+	d.IncludeRouter(habitList)
+	d.IncludeRouter(habitMenu)
 
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-
-	updates := bot.GetUpdatesChan(u)
-
-	for update := range updates {
-		log.Info().Msgf("%+v", update)
-
-		d.PassHandlers(&update)
-	}
+	d.Polling()
 }

@@ -9,7 +9,7 @@ type Router Dispatcher
 
 func NewRouter(habitBot *HabitBot) *Router {
 	return &Router{
-		habitBot:        habitBot,
+		HabitBot:        habitBot,
 		handlersFilters: make([]HandlerFilter, 0),
 		Routers:         make([]*Router, 0),
 	}
@@ -39,7 +39,7 @@ func (r *Router) CallBackQuery(handler HandlerFunc, filters_ ...filters.Filter) 
 
 func (r *Router) FSMState(state string, handler HandlerFunc, filters_ ...filters.Filter) {
 	filterWithFSMState := func(update *tgbotapi.Update) bool {
-		FSMState := r.habitBot.FSM(update).Current()
+		FSMState := r.HabitBot.FSM(update).Current()
 
 		f := filters.F(filters_...)
 
@@ -70,6 +70,10 @@ func (r *Router) PassHandlers(update *tgbotapi.Update) bool {
 	}
 
 	return done
+}
+
+func (r *Router) IncludeRouter(router *Router) {
+	r.Routers = append(r.Routers, router)
 }
 
 func (r *Router) register(filter func(update *tgbotapi.Update) bool, handler HandlerFunc) {

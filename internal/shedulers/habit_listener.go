@@ -1,9 +1,13 @@
 package shedulers
 
-import "HabitsBot/internal/handlers"
+import (
+	"HabitsBot/internal/handlers"
+	"sync"
+)
 
 func HabitListener(habitBot *handlers.HabitBot) {
-	for habit := range habitBot.TimeShedulerChan {
-		go AddHabitToTiming(habit, habitBot)
+	mu := &sync.Mutex{}
+	for data := range habitBot.TimeShedulerChan {
+		go AddHabitToTiming(data.Habit, data.Timestamp, habitBot, mu)
 	}
 }

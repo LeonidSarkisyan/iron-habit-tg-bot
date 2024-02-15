@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func TimePickerKeyboard(times *string) tgbotapi.InlineKeyboardMarkup {
+func TimePickerKeyboard(time *string) tgbotapi.InlineKeyboardMarkup {
 	var rows [][]tgbotapi.InlineKeyboardButton
 
 	for h := 0; h <= 23; h++ {
@@ -14,10 +14,9 @@ func TimePickerKeyboard(times *string) tgbotapi.InlineKeyboardMarkup {
 			buttonText := fmt.Sprintf("%02d:%02d", h, m)
 			callbackData := fmt.Sprintf("%02d:%02d", h, m)
 
-			if times != nil {
-				if strings.Replace(*times, "time__", "", 1) == callbackData {
+			if time != nil {
+				if strings.Replace(*time, "time__", "", 1) == callbackData {
 					buttonText += "  " + DoneEmoji
-					break
 				}
 			}
 
@@ -33,7 +32,7 @@ func TimePickerKeyboard(times *string) tgbotapi.InlineKeyboardMarkup {
 		}
 	}
 
-	if times != nil {
+	if time != nil {
 		btn := tgbotapi.NewInlineKeyboardButtonData("Создать напоминание  ✨", "time__continue")
 		rows = append(rows, []tgbotapi.InlineKeyboardButton{btn})
 	}

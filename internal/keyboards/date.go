@@ -2,6 +2,7 @@ package keyboards
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"strings"
 )
 
 const (
@@ -9,6 +10,10 @@ const (
 )
 
 func DaysPickerKeyboard(day *string) tgbotapi.InlineKeyboardMarkup {
+	if day != nil {
+		*day = strings.Replace(*day, "day__", "", 1)
+	}
+
 	var rows [][]tgbotapi.InlineKeyboardButton
 
 	daysOfWeek := []CallBackData{
